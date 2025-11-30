@@ -1,0 +1,382 @@
+
+@@@@@@@@@@@@@@@@@@@ THIS ROUTINE GIVES FEATURE CORRELATIONS FOR CHOSEN ORIGINAL FEATURES @@@@@@@@@@@@@@@@@@@@S
+
+####################### sdss dr16 feature correlation v1
+
+import pandas as pd
+import numpy as np
+import csv
+import warnings
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+warnings.filterwarnings("ignore")
+
+
+file_path = r"C:\Users\Joshi Sir\Downloads\quasar_SDSS_DR16_500k_entries.csv"     ######## change path
+n_rows_to_read = 500000 
+eps = 1e-9
+
+print(f"\nLoading dataset from: {file_path}")
+
+
+with open(file_path, 'r', encoding='utf-8') as f:
+    sample = f.read(2048)
+    sniffer = csv.Sniffer()
+    try:
+        delimiter = sniffer.sniff(sample).delimiter
+    except csv.Error:
+        delimiter = ','
+
+data = pd.read_csv(file_path, sep=delimiter, low_memory=False, nrows=n_rows_to_read)
+print(f"data loaded")
+
+
+#################### kellerman 
+
+eps = 1e-10
+
+
+data = data[data['first_flux'].notnull() & data['psfmag_i'].notnull()].copy()
+
+
+data['first_flux_jy'] = data['first_flux'] * 1e-3
+
+
+data['f_optical'] = 10 ** (-0.4 * (data['psfmag_i'] - 8.9))
+
+data['R_i'] = data['first_flux_jy'] / (data['f_optical'] + eps)
+data['Radio_Loud'] = (data['R_i'] > 10).astype(int)
+
+
+num_loud = data['Radio_Loud'].sum()
+num_quiet = (data['Radio_Loud'] == 0).sum()
+total = len(data)
+
+print("\n===== DATA OVERVIEW =====")
+print(f"Total quasars read: {total:,}")
+print(f"Radio-Loud quasars: {num_loud:,}")
+print(f"Radio-Quiet quasars: {num_quiet:,}")
+if total > 0:
+    print(f"Radio-Loud fraction: {num_loud / total:.4f}")
+
+    
+################### feature selection
+
+for col in ['rosat_src_flux']:
+    if col in data.columns:
+        nonpos_mask = (data[col] <= 0) & (~data[col].isnull())
+        if nonpos_mask.any():
+            data.loc[nonpos_mask, col] = eps
+        data[col] = np.log10(data[col])
+
+
+for a, b, name in [
+    ('psfmag_u', 'psfmag_g', 'ug'),
+    ('psfmag_g', 'psfmag_r', 'gr'),
+    ('psfmag_r', 'psfmag_i', 'ri'),
+    ('psfmag_i', 'psfmag_z', 'iz'),
+    ('w1_mag', 'w2_mag', 'w1w2')
+]:
+    if (a in data.columns) and (b in data.columns):
+        data[name] = data[a] - data[b]
+
+
+features = [
+    'psfmag_u', 'psfmag_g', 'psfmag_r', 'psfmag_i', 'psfmag_z',
+    'w1_mag', 'w2_mag',
+    'w1_flux_snr', 'w2_flux_snr',
+    'rosat_src_flux', 
+    'mi', 'z_pca', 'sn_median_all',
+    'ug', 'gr', 'ri', 'iz', 'w1w2'
+]
+
+available_features = [f for f in features if f in data.columns]
+data = data[available_features + ['Radio_Loud']].replace([np.inf, -np.inf], np.nan).dropna()
+
+
+X = data[available_features]
+y = data['Radio_Loud']
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, stratify=y, random_state=42
+)
+
+
+corr = X_train.corr(method='pearson')
+corr_pairs = (
+    corr.where(np.triu(np.ones(corr.shape), k=1).astype(bool))
+    .stack()
+    .reset_index()
+)
+corr_pairs.columns = ['Feature1', 'Feature2', 'Correlation']
+strong_corr = corr_pairs.loc[corr_pairs['Correlation'].abs() > 0.7].sort_values(
+    'Correlation', ascending=False
+)
+print(strong_corr.to_string(index=False))
+
+try:
+    sns.set(style="white", font_scale=1.0)
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(
+        corr,
+        cmap='coolwarm',
+        center=0,
+        square=True,
+        linewidths=0.3,
+        cbar_kws={"shrink": 0.8},
+    )
+
+    plt.title("Feature Correlation Matrix for PCA Inputs", fontsize=22) 
+    #plt.xlabel('Features', fontsize=20)  
+    #plt.ylabel('Features', fontsize=20) 
+    plt.xticks(fontsize=18)  
+    plt.yticks(fontsize=18)  
+
+    cbar = plt.gca().collections[0].colorbar
+    cbar.ax.tick_params(labelsize=18) 
+
+    plt.tight_layout()
+    plt.show()
+except Exception as e:
+    print(f"(Skip heatmap: {e})")
+
+
+
+
+
+
+
+
+@@@@@@@@@@@@@@@@@@@@ ROUTINE BELOW GENERATES EXPLAINED VARIANCE AND HEATMPA OF PC LOADINGS POST PCA @@@@@@@@@@@@@@@@@@@@
+
+
+
+
+
+
+
+#################### sdss dr16 explained variance and pca loading v1
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+import csv
+
+
+file_path = r"C:\Users\Joshi Sir\Downloads\quasar_SDSS_DR16_500k_entries.csv"
+n_rows_to_read = 500000  
+
+
+with open(file_path, 'r', encoding='utf-8') as f:
+    sample = f.read(2048)
+    sniffer = csv.Sniffer()
+    try:
+        delimiter = sniffer.sniff(sample).delimiter
+    except csv.Error:
+        delimiter = ','
+
+
+data = pd.read_csv(file_path, sep=delimiter, low_memory=False, nrows=n_rows_to_read)
+
+######### labels with kellerman
+eps = 1e-10
+
+
+data = data[data['first_flux'].notnull() & data['psfmag_i'].notnull()].copy()
+
+
+data['first_flux_jy'] = data['first_flux'] * 1e-3
+
+
+data['f_optical'] = 10 ** (-0.4 * (data['psfmag_i'] - 8.9))
+
+
+data['R_i'] = data['first_flux_jy'] / (data['f_optical'] + eps)
+data['Radio_Loud'] = (data['R_i'] > 10).astype(int)
+
+
+num_loud = data['Radio_Loud'].sum()
+num_quiet = (data['Radio_Loud'] == 0).sum()
+total = len(data)
+
+print("\n=overview=")
+print(f"Total quasars read: {total:,}")
+print(f"Radio-Loud quasars: {num_loud:,}")
+print(f"Radio-Quiet quasars: {num_quiet:,}")
+if total > 0:
+    print(f"Radio-Loud fraction: {num_loud / total:.4f}")
+
+    
+    
+    
+######### features    
+    
+eps = 1e-9
+
+
+for col in ['rosat_src_flux']: 
+    if col in data.columns:
+        nonpos_mask = (data[col] <= 0) & (~data[col].isnull())
+        if nonpos_mask.any():
+            data.loc[nonpos_mask, col] = eps
+        data[col] = np.log10(data[col])
+
+# Color indices
+for a, b, name in [
+    ('psfmag_u', 'psfmag_g', 'ug'),
+    ('psfmag_g', 'psfmag_r', 'gr'),
+    ('psfmag_r', 'psfmag_i', 'ri'),
+    ('psfmag_i', 'psfmag_z', 'iz'),
+    ('w1_mag', 'w2_mag', 'w1w2')
+]:
+    if (a in data.columns) and (b in data.columns):
+        data[name] = data[a] - data[b]
+
+
+features = [
+    'psfmag_u', 'psfmag_g', 'psfmag_r', 'psfmag_i', 'psfmag_z',
+    'w1_mag', 'w2_mag',
+    'w1_flux_snr', 'w2_flux_snr',
+    'rosat_src_flux',  
+    'mi', 'z_pca', 'sn_median_all',
+    'ug', 'gr', 'ri', 'iz', 'w1w2'
+]
+features = [f for f in features if f in data.columns]  # keep only existing ones
+
+
+data = data[features + ['Radio_Loud']].replace([np.inf, -np.inf], np.nan).dropna()
+
+
+
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(data[features])
+
+pca = PCA(n_components=7, random_state=42)
+X_pca = pca.fit_transform(X_scaled)
+
+print("\nPCA variance ratios (first 7):", np.round(pca.explained_variance_ratio_[:7], 4))
+
+
+
+######### pca explained variance
+def plot_explained_variance(pca, font_size=18):
+    plt.figure(figsize=(10, 6))
+    components = np.arange(1, len(pca.explained_variance_ratio_) + 1)
+    cumulative_var = np.cumsum(pca.explained_variance_ratio_)
+
+    plt.bar(components, pca.explained_variance_ratio_, alpha=0.7, label='Individual variance')
+
+  
+    for i, v in enumerate(pca.explained_variance_ratio_):
+        plt.text(i + 1, v + 0.01, f"{v*100:.2f}%", ha='center', fontsize=font_size)
+
+    plt.plot(components, cumulative_var, marker='o', color='red', label='Cumulative variance')
+
+    
+    plt.title("PCA Explained Variance Ratio", fontsize=font_size + 4)
+    plt.xlabel("Principal Component", fontsize=font_size)
+    plt.ylabel("Explained Variance Ratio", fontsize=font_size)
+    plt.xticks(components, fontsize=font_size)
+    plt.yticks(fontsize=font_size)
+    plt.legend(fontsize=font_size)
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+
+plot_explained_variance(pca, font_size=18)
+
+################ pca contri. heatmap
+
+
+plt.figure(figsize=(8, 5))
+components = np.arange(1, len(pca.explained_variance_ratio_) + 1)
+cumulative_var = np.cumsum(pca.explained_variance_ratio_)
+
+plt.bar(components, pca.explained_variance_ratio_, alpha=0.7, label='Individual variance')
+plt.plot(components, cumulative_var, marker='o', color='red', label='Cumulative variance')
+
+plt.xlabel("Principal Component",fontsize=18)
+plt.ylabel("Explained Variance Ratio",fontsize=18)
+plt.xticks(components)
+plt.legend()
+plt.grid(alpha=0.3)
+plt.tight_layout()
+plt.show()
+
+feature_name_map = {
+    'psfmag_u': "PSF(u)",
+    'psfmag_g': "PSF(g)",
+    'psfmag_r': "PSF(r)",
+    'psfmag_i': "PSF(i)",
+    'psfmag_z': "PSF(z)",
+    'w1_mag': "WISE(W1)",
+    'w2_mag': "WISE(W2)",
+    'w1_flux_snr': "W1-SNR",
+    'w2_flux_snr': "W2-SNR",
+    'rosat_src_flux': "ROSAT X-ray",
+    'mi': "Mi",
+    'z_pca': "z(PCA)",
+    'sn_median_all': "Median S/N",
+    'ug': "u–g",
+    'gr': "g–r",
+    'ri': "r–i",
+    'iz': "i–z",
+    'w1w2': "W1–W2"
+}
+mapped_features = [feature_name_map.get(f, f) for f in features]
+
+loading_matrix = pd.DataFrame(
+    np.abs(pca.components_),
+    columns=mapped_features,
+    index=[f"PC{i+1}" for i in range(pca.n_components_)]
+)
+
+plt.figure(figsize=(12, 6))
+
+
+ax = sns.heatmap(
+    loading_matrix,
+    annot=False,
+    cmap="viridis",
+    cbar_kws={'label': 'Absolute Feature Contribution'}
+)
+
+
+cbar = ax.collections[0].colorbar
+cbar.ax.tick_params(labelsize=14)
+cbar.set_label('Absolute Feature Contribution', fontsize=16)
+
+plt.xlabel("Feature", fontsize=16)
+plt.ylabel("Principal Components", fontsize=16)
+plt.xticks(rotation=45, ha='right', fontsize=10)
+plt.tight_layout()
+plt.show()
+
+top_features_per_pc = {
+    f"PC{i+1}": [mapped_features[j] for j in np.argsort(-loading_matrix.iloc[i].values)[:5]]
+    for i in range(pca.n_components_)
+}
+
+print("\nTop 5 contributing features per PCA component :")
+for pc, feats in top_features_per_pc.items():
+    print(f"  {pc}: {', '.join(feats)}")
+
+
+plt.rcParams.update({
+    'font.family': 'serif',   
+    'font.size': 17,          
+    'axes.titles.fontsize': 20,   
+    'axes.labelsize': 18,         
+    'xtick.labelsize': 40,       
+    'ytick.labelsize': 25         
+})
+
+
