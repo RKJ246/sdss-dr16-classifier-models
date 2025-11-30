@@ -1,0 +1,1 @@
+This repo. has detailed analysis codes for quasar classification routine on SDSS DR16 dataset. We employ PCA based regression classifier and analyze its performance with baseline models consisting RF and XGBOOST. Dataset used for this study can be found at https://datalab.noirlab.edu/data-explorer?showTable=sdss_dr16.dr16q
