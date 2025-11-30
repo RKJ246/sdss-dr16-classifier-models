@@ -1,0 +1,641 @@
+
+
+@@@@@@@@@@@@@@@@@@  THIS ROUTINE PROVIDES DETAILED ANALYSIS OF AUC, F1, RECALL, PRECISION FOR TOP PC PAIRS FOR DEG.1-4 REGRESSION CLASSIFIER RESTULS @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+########### sdss dr16 PCA planes analysis v4
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+
+data = {                              ############################## THIS DATA IS SPECTIFIC TO ANALYSIS. DONT RUN THIS ROUTINE BEFORE RUNNING FEATURE ENGINEERING AND PCA+LR ROUTINE
+    'Degree': [
+        1,1,1,
+        2,2,2,
+        3,3,3,
+        4,4,4
+    ],
+
+    'PC Pair': [
+        'PC3-PC5', 'PC4-PC5', 'PC5-PC6',          
+        'PC1-PC3', 'PC1-PC6', 'PC1-PC5',          
+        'PC4-PC6', 'PC1-PC6', 'PC3-PC5',          
+        'PC1-PC7', 'PC5-PC7', 'PC4-PC7'           
+    ],
+
+    'Accuracy': [
+        0.8242, 0.8208, 0.7891,
+        0.8256, 0.8440, 0.8422,
+        0.8069, 0.8368, 0.8550,
+        0.3657, 0.3602, 0.5593
+    ],
+
+    'Precision': [
+        0.0418, 0.0386, 0.0281,
+        0.0429, 0.0449, 0.0428,
+        0.0398, 0.0439, 0.0466,
+        0.0280, 0.0263, 0.0309
+    ],
+
+    'Recall': [
+        0.2890, 0.2714, 0.2327,
+        0.2951, 0.2723, 0.2617,
+        0.3054, 0.2798, 0.2597,
+        0.7558, 0.7146, 0.5738
+    ],
+
+    'F1': [
+        0.0730, 0.0677, 0.0502,
+        0.0750, 0.0772, 0.0736,
+        0.0704, 0.0759, 0.0790,
+        0.0540, 0.0508, 0.0587
+    ],
+
+    'AUC': [
+        0.6159, 0.6021, 0.5309,
+        0.6362, 0.6236, 0.6287,
+        0.6066, 0.6241, 0.6360,
+        0.6160, 0.5628, 0.5888
+    ],
+
+    'Predicted Loud': [
+        24847, 25231, 29708,
+        24692, 21761, 21956,
+        27573, 22891, 20017,
+        96976, 97512, 66635
+    ],
+
+    'Correct Loud': [
+        1038, 975, 836,
+        1060, 978, 940,
+        1097, 1005, 933,
+        2715, 2567, 2061
+    ]
+}
+
+df = pd.DataFrame(data)
+df['Weighted Score'] = 0.5*df['AUC'] + 0.3*df['F1'] + 0.2*df['Recall']
+
+sns.set(style="whitegrid", font="serif", context="talk")
+
+
+fig, ax = plt.subplots(figsize=(10, 7))
+
+norm = plt.Normalize(df['F1'].min(), df['F1'].max())
+sm = plt.cm.ScalarMappable(cmap="viridis", norm=norm)
+sm.set_array([])
+
+
+
+########### AUC vs recall plane
+
+
+sns.scatterplot(
+    data=df,
+    x="Recall",
+    y="AUC",
+    hue="F1",
+    style="Degree",
+    palette="viridis",
+    s=140,
+    edgecolor="black",
+    alpha=0.88,
+    ax=ax
+)
+
+if ax.get_legend() is not None:
+    ax.get_legend().remove()
+
+
+degree_markers = {1: "o", 2: "X", 3: "s", 4: "P"}
+
+degree_handles = [
+    plt.Line2D([], [], marker=degree_markers[d], linestyle="",
+               markersize=10, markeredgewidth=1.2,
+               markeredgecolor="black", markerfacecolor="gray")
+    for d in sorted(df["Degree"].unique())
+]
+
+degree_labels = [f"{d}" for d in sorted(df["Degree"].unique())]
+
+deg_legend = ax.legend(
+    degree_handles,
+    degree_labels,
+    title="Degree",
+    bbox_to_anchor=(-0.01, 1.0),
+    loc="upper left",
+    borderpad=0.6,
+    frameon=True
+)
+ax.add_artist(deg_legend)
+
+
+cbar_ax = fig.add_axes([1.1, 0.25, 0.02, 0.55])
+cbar = fig.colorbar(sm, cax=cbar_ax)
+cbar.set_label("F1 Score")
+
+
+offsets = {
+    "PC3-PC5": (80, -20),
+    "PC1-PC3": (-55, -10),
+    "PC4-PC6": (-70, 15),
+    "PC1-PC7": (-70, 15),
+}
+
+
+arrow_styles = {
+    "PC3-PC5": dict(arrowstyle="->", lw=1.6, color="black", mutation_scale=18),
+    "PC1-PC3": dict(arrowstyle="->", lw=1.4, color="black", mutation_scale=16),
+    "PC4-PC6": dict(arrowstyle="->", lw=1.5, color="black", mutation_scale=20),
+    "PC1-PC7": dict(arrowstyle="->", lw=1.5, color="black", mutation_scale=20),
+}
+
+# 
+# 
+# 
+# top = df.loc[df.groupby("Degree")["Weighted Score"].idxmax()].copy()
+# top["Label"] = top["PC Pair"] + " (Deg " + top["Degree"].astype(str) + ")"
+
+# for _, row in top.iterrows():
+#     pc = row["PC Pair"]
+
+#     dx, dy = offsets.get(pc, (40, 30))
+#     arrow_kw = arrow_styles.get(pc, dict(arrowstyle="->", lw=1.2, color="black", mutation_scale=14))
+
+#     ax.annotate(
+#         row["Label"],
+#         (row["Recall"], row["AUC"]),
+#         xytext=(dx, dy),
+#         textcoords="offset points",
+#         fontsize=14,
+#         fontstyle="italic",
+#         arrowprops=arrow_kw
+#     )
+
+
+ax.set_title("AUC vs Recall by PCA Pair and Polynomial Degree", pad=20)
+ax.set_xlabel("Recall")
+ax.set_ylabel("AUC")
+ax.set_xlim(0.1, 0.8)
+
+plt.tight_layout(rect=[0, 0, 1.15, 1])
+plt.show()
+
+
+
+
+############### AUC vs degree
+
+
+plt.figure(figsize=(9,6))
+sns.lineplot(data=df, x='Degree', y='AUC', hue='PC Pair', marker='o', palette='viridis')
+plt.title('AUC Evolution Across Polynomial Degrees for Each PCA Pair', pad=15)
+plt.xlabel('Polynomial Degree')
+plt.ylabel('AUC')
+plt.ylim(0.55, 0.68)
+plt.legend(frameon=False, fontsize=10)
+plt.tight_layout()
+plt.show()
+
+
+################# RLQs detected plots
+
+metrics = ['AUC', 'Recall', 'Precision', 'F1']
+plt.figure(figsize=(14,10))
+for i, metric in enumerate(metrics, 1):
+    plt.subplot(2, 2, i)
+    sns.scatterplot(data=df, x='Correct Loud', y=metric, hue='Degree', style='Degree', s=80, palette='tab10', alpha=0.9)
+    plt.title(f'RLQs Detected vs {metric}', pad=10)
+    plt.xlabel('Number of RLQs Detected (Correct Loud)')
+    plt.ylabel(metric)
+plt.tight_layout()
+plt.show()
+
+
+
+################# rankings of PC pairs
+
+-
+ranked = df.groupby('PC Pair', as_index=False)['Weighted Score'].mean().sort_values('Weighted Score', ascending=False)
+
+plt.figure(figsize=(8,5))
+sns.barplot(data=ranked, x='Weighted Score', y='PC Pair', palette='viridis')
+plt.title('Overall PCA Pair Ranking (Weighted by AUC, F1, Recall)', pad=10)
+plt.xlabel('Weighted Score')
+plt.ylabel('PCA Pair')
+plt.tight_layout()
+plt.show()
+
+print("Top 3 PCA pairs overall by weighted score:")
+display(ranked.head(3))
+
+################## Best poly. degree
+
+
+degree_summary = (
+    df.groupby('Degree')[['AUC','F1','Recall','Precision','Accuracy','Weighted Score']]
+    .mean()
+    .reset_index()
+    .sort_values('Weighted Score', ascending=False)
+)
+
+print("\n=== Average Performance by Polynomial Degree ===")
+display(degree_summary)
+
+best_degree = degree_summary.loc[degree_summary['Weighted Score'].idxmax(), 'Degree']
+
+
+plt.figure(figsize=(10,5))
+sns.lineplot(
+    data=degree_summary.melt(id_vars='Degree', 
+                             value_vars=['AUC','F1','Recall','Precision','Weighted Score']),
+    x='Degree', y='value', hue='variable', marker='o', palette='viridis'
+)
+plt.title('Average Metric Performance by Polynomial Degree', pad=10)
+plt.xlabel('Polynomial Degree')
+plt.ylabel('Average Metric Value')
+plt.tight_layout()
+plt.show()
+
+
+
+
+
+
+
+
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ RLQSR CALCULATION ROUTNIE @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+
+
+
+##################### sdss dr16 RLQSR routine v2
+
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler, PolynomialFeatures
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score, f1_score, roc_curve, auc
+)
+import xgboost as xgb
+import csv, itertools, re, warnings
+from scipy.spatial import ConvexHull
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.exceptions import ConvergenceWarning
+
+
+
+file_path = r"C:\Users\Joshi Sir\Downloads\quasar_SDSS_DR16_500k_entries.csv"
+n_rows_to_read = 500000
+
+with open(file_path, 'r', encoding='utf-8') as f:
+    sample = f.read(2048)
+    sniffer = csv.Sniffer()
+    try:
+        delimiter = sniffer.sniff(sample).delimiter
+    except csv.Error:
+        delimiter = ','
+
+data = pd.read_csv(file_path, sep=delimiter, low_memory=False, nrows=n_rows_to_read)
+
+
+################ kellerman criteria label assignment
+
+eps = 1e-10
+
+# Keep only entries with radio flux + i-band magnitude
+data = data[data['first_flux'].notnull() & data['psfmag_i'].notnull()].copy()
+
+data['first_flux_jy'] = data['first_flux'] * 1e-3
+data['f_optical'] = 10 ** (-0.4 * (data['psfmag_i'] - 8.9))
+data['R_i'] = data['first_flux_jy'] / (data['f_optical'] + eps)
+data['Radio_Loud'] = (data['R_i'] > 10).astype(int)
+
+num_loud = data['Radio_Loud'].sum()
+num_quiet = (data['Radio_Loud'] == 0).sum()
+total = len(data)
+
+print("\n= data summary=")
+print(f"Total quasars read: {total:,}")
+print(f"Radio-Loud quasars: {num_loud:,}")
+print(f"Radio-Quiet quasars: {num_quiet:,}")
+if total > 0:
+    print(f"Radio-Loud fraction: {num_loud / total:.4f}")
+
+
+    
+############ features    
+
+eps = 1e-9
+for col in ['rosat_src_flux']:
+    if col in data.columns:
+        nonpos_mask = (data[col] <= 0) & (~data[col].isnull())
+        if nonpos_mask.any():
+            data.loc[nonpos_mask, col] = eps
+        data[col] = np.log10(data[col])
+
+for a, b, name in [
+    ('psfmag_u', 'psfmag_g', 'ug'),
+    ('psfmag_g', 'psfmag_r', 'gr'),
+    ('psfmag_r', 'psfmag_i', 'ri'),
+    ('psfmag_i', 'psfmag_z', 'iz'),
+    ('w1_mag', 'w2_mag', 'w1w2')
+]:
+    if (a in data.columns) and (b in data.columns):
+        data[name] = data[a] - data[b]
+
+features = [
+    'psfmag_u', 'psfmag_g', 'psfmag_r', 'psfmag_i', 'psfmag_z',
+    'w1_mag', 'w2_mag',
+    'w1_flux_snr', 'w2_flux_snr',
+    'rosat_src_flux',
+    'mi', 'z_pca', 'sn_median_all',
+    'ug', 'gr', 'ri', 'iz', 'w1w2'
+]
+features = [f for f in features if f in data.columns]
+data = data[features + ['Radio_Loud']].replace([np.inf, -np.inf], np.nan).dropna()
+
+
+
+
+############### train test val split
+
+X = data[features]
+y = data['Radio_Loud']
+
+# Training_Val (70%) and Test (30%)
+train_val_idx, test_idx = train_test_split(
+    np.arange(len(X)), test_size=0.3, random_state=42, stratify=y
+)
+X_train_val = X.iloc[train_val_idx].reset_index(drop=True)
+y_train_val = y.iloc[train_val_idx].reset_index(drop=True)
+X_test = X.iloc[test_idx].reset_index(drop=True)
+y_test = y.iloc[test_idx].reset_index(drop=True)
+
+# Training_Val (70%) into Training (70% of 70%) and Validation (30% of 70%)
+train_idx_split, val_idx_split = train_test_split(
+    np.arange(len(X_train_val)), test_size=0.3, random_state=42, stratify=y_train_val
+)
+X_train = X_train_val.iloc[train_idx_split].reset_index(drop=True)
+X_val = X_train_val.iloc[val_idx_split].reset_index(drop=True)
+y_train = y_train_val.iloc[train_idx_split].reset_index(drop=True)
+y_val = y_train_val.iloc[val_idx_split].reset_index(drop=True)
+
+print(f"\n--- Data Split ---")
+print(f"Training set size: {len(X_train):,}")
+print(f"Validation set size: {len(X_val):,}")
+print(f"Test set size: {len(X_test):,}")
+
+
+########### threshold on val. set
+
+def find_best_threshold(y_true_val, y_proba_val):
+    """Finds the probability threshold that maximizes F1-score on the VALIDATION data."""
+    # Use a wide range of thresholds
+    thresholds = np.linspace(0.01, 0.99, 99)
+    best_f1, best_th = -1, 0.5
+    for th in thresholds:
+        # Evaluate on the validation set
+        f1 = f1_score(y_true_val, (y_proba_val >= th).astype(int), zero_division=0)
+        if f1 > best_f1:
+            best_f1, best_th = f1, th
+    return best_th
+
+
+##################### pca
+
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_val_scaled = scaler.transform(X_val)
+X_test_scaled = scaler.transform(X_test)
+
+pca = PCA(n_components=7, random_state=42)
+X_train_pca = pca.fit_transform(X_train_scaled)
+X_val_pca = pca.transform(X_val_scaled)
+X_test_pca = pca.transform(X_test_scaled)
+print("\nPCA variance ratios (first 7):", np.round(pca.explained_variance_ratio_[:7], 4))
+
+####################### RF and XGB
+
+############ Rf
+
+rf = RandomForestClassifier(n_estimators=200, random_state=42, class_weight='balanced')
+rf.fit(X_train_scaled, y_train)
+y_proba_rf_val = rf.predict_proba(X_val_scaled)[:, 1]
+y_proba_rf = rf.predict_proba(X_test_scaled)[:, 1]
+best_th_rf = find_best_threshold(y_val, y_proba_rf_val) 
+y_pred_rf = (y_proba_rf >= best_th_rf).astype(int)
+
+############# xgb
+
+scale_pos_weight = y_train.value_counts()[0] / y_train.value_counts()[1]
+xgb_clf = xgb.XGBClassifier(
+    n_estimators=300, learning_rate=0.05, max_depth=6,
+    subsample=0.8, colsample_bytree=0.8, random_state=42,
+    use_label_encoder=False, eval_metric='auc',
+    scale_pos_weight=scale_pos_weight
+)
+xgb_clf.fit(X_train_scaled, y_train)
+y_proba_xgb_val = xgb_clf.predict_proba(X_val_scaled)[:, 1]
+y_proba_xgb = xgb_clf.predict_proba(X_test_scaled)[:, 1]
+best_th_xgb = find_best_threshold(y_val, y_proba_xgb_val)
+y_pred_xgb = (y_proba_xgb >= best_th_xgb).astype(int)
+
+
+################## pca+lr on deg.1-4 regression
+
+degrees = [1, 2, 3, 4]
+results = []
+pairs = list(itertools.combinations(range(X_train_pca.shape[1]), 2))
+print(f"\nRunning PCA + LR analysis on {len(pairs)} PCA pairs across degrees {degrees}...\n")
+
+for (i, j) in pairs:
+    for deg in degrees:
+        # Prepare Data
+        X_train_pair = X_train_pca[:, [i, j]]
+        X_val_pair = X_val_pca[:, [i, j]]
+        X_test_pair = X_test_pca[:, [i, j]]
+
+        scaler_pca = StandardScaler()
+        X_train_scaled_pair = scaler_pca.fit_transform(X_train_pair)
+        X_val_scaled_pair = scaler_pca.transform(X_val_pair)
+        X_test_scaled_pair = scaler_pca.transform(X_test_pair)
+
+        poly = PolynomialFeatures(degree=deg, include_bias=False)
+        X_train_poly = poly.fit_transform(X_train_scaled_pair)
+        X_val_poly = poly.transform(X_val_scaled_pair)
+        X_test_poly = poly.transform(X_test_scaled_pair)
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=ConvergenceWarning)
+            lr_pca = LogisticRegression(
+                solver="liblinear", max_iter=5000, random_state=42,
+                class_weight='balanced'
+            ).fit(X_train_poly, y_train)
+
+
+        y_proba_lr_val = lr_pca.predict_proba(X_val_poly)[:, 1]
+        y_proba_lr = lr_pca.predict_proba(X_test_poly)[:, 1]
+
+   
+        best_th_lr = find_best_threshold(y_val, y_proba_lr_val)
+        y_pred_lr = (y_proba_lr >= best_th_lr).astype(int) 
+
+
+        recall_val = recall_score(y_test, y_pred_lr, zero_division=0)
+        auc_val = auc(*roc_curve(y_test, y_proba_lr)[:2])
+
+        results.append({
+            "PC Pair": f"PC{i+1}-PC{j+1}",
+            "Degree": deg,
+            "Accuracy": accuracy_score(y_test, y_pred_lr),
+            "Precision": precision_score(y_test, y_pred_lr, zero_division=0),
+            "Recall": recall_val,
+            "F1": f1_score(y_test, y_pred_lr),
+            "AUC": auc_val,
+            "Threshold": best_th_lr
+        })
+
+
+        
+################## span + fischer formalism        
+
+span_metrics = []
+
+for (i, j) in itertools.combinations(range(X_train_pca.shape[1]), 2):
+    pair_name = f"PC{i+1}-PC{j+1}"
+    RL = X_train_pca[y_train == 1][:, [i, j]]
+    RQ = X_train_pca[y_train == 0][:, [i, j]]
+    
+    if len(RL) < 3 or len(RQ) < 3:
+        continue
+        
+    mu_RL, mu_RQ = RL.mean(axis=0), RQ.mean(axis=0)
+    delta_mu = np.linalg.norm(mu_RL - mu_RQ)
+    sigma2 = 0.5 * (RL.var(axis=0).sum() + RQ.var(axis=0).sum())
+    
+    fisher_ratio = (delta_mu ** 2) / (sigma2 + 1e-12)
+    
+    try:
+        
+        A_RL = ConvexHull(RL).volume
+        A_all = ConvexHull(np.vstack([RL, RQ])).volume
+        span_ratio = A_RL / A_all if A_all > 0 else np.nan
+    except Exception:
+        span_ratio = np.nan
+        
+    # change relative weights of fisher and span ratio here
+    
+    R = 0.5 * fisher_ratio + 0.5 * (1 - (span_ratio if not np.isnan(span_ratio) else 0))
+    
+    span_metrics.append({
+        "PC Pair": pair_name,
+        "Fisher Ratio": fisher_ratio,
+        "Span Ratio": span_ratio,
+        "Base RLQ Separation": R
+    })
+span_df = pd.DataFrame(span_metrics).set_index("PC Pair")
+
+
+summary_df = pd.DataFrame(results).join(span_df, on="PC Pair", how="left")
+
+summary_df["RLQ Separation Rating"] = summary_df["Base RLQ Separation"].fillna(0) + 0.0 * summary_df["Recall"] ## add recall weight here for model depenedent metric
+
+print("\n===== PCA GEOMETRIC SEPARATION & SPAN SUMMARY =====")
+print(summary_df[["PC Pair", "Degree", "Recall", "Fisher Ratio", "Span Ratio", "RLQ Separation Rating"]]
+      .round(4)
+      .sort_values(by="RLQ Separation Rating", ascending=False)
+      .head(15))
+
+
+for deg in degrees:
+    top = summary_df[summary_df["Degree"] == deg].sort_values(by="RLQ Separation Rating", ascending=False).head(5)
+    print(f"\n===== TOP 5 PCA PAIRS for Degree {deg} =====")
+    print(top[["PC Pair", "Recall", "F1", "AUC", "RLQ Separation Rating"]].round(4))
+
+
+plt.figure(figsize=(10,6))
+sns.boxplot(data=summary_df, x="Degree", y="RLQ Separation Rating")
+sns.stripplot(data=summary_df, x="Degree", y="RLQ Separation Rating", color='red', alpha=0.5, jitter=True)
+plt.title("RLQ Separation Rating Across Polynomial Degrees", fontsize=16)
+plt.ylabel("RLQ Separation Rating", fontsize=14)
+plt.xlabel("Polynomial Degree", fontsize=14)
+plt.grid(alpha=0.3)
+plt.tight_layout()
+plt.show(block=True) # 
+
+
+best_row = summary_df.sort_values(by="RLQ Separation Rating", ascending=False).iloc[0]
+best_pair, best_deg = best_row["PC Pair"], int(best_row["Degree"])
+best_th_lr = best_row["Threshold"] 
+nums = re.findall(r'\d+', best_pair)
+i_best, j_best = map(int, nums)
+
+
+
+# ############### roc, auc and confusion matrix calculations (OPTIONAL)
+
+# scaler_best = StandardScaler().fit(X_train_pca[:, [i_best-1, j_best-1]])
+# poly_best = PolynomialFeatures(degree=best_deg, include_bias=False)
+
+
+# X_train_poly = poly_best.fit_transform(scaler_best.transform(X_train_pca[:, [i_best-1, j_best-1]]))
+
+# X_test_poly = poly_best.transform(scaler_best.transform(X_test_pca[:, [i_best-1, j_best-1]]))
+
+# lr_best = LogisticRegression(solver="liblinear", max_iter=5000, random_state=42, class_weight='balanced')
+# lr_best.fit(X_train_poly, y_train)
+# y_proba_lr = lr_best.predict_proba(X_test_poly)[:, 1]
+# y_pred_lr = (y_proba_lr >= best_th_lr).astype(int)
+
+# fpr_lr, tpr_lr, _ = roc_curve(y_test, y_proba_lr)
+# auc_lr = auc(fpr_lr, tpr_lr)
+
+
+# fpr_rf, tpr_rf, _ = roc_curve(y_test, y_proba_rf)
+# fpr_xgb, tpr_xgb, _ = roc_curve(y_test, y_proba_xgb)
+# auc_rf = auc(fpr_rf, tpr_rf)
+# auc_xgb = auc(fpr_xgb, tpr_xgb)
+
+# plt.figure(figsize=(8,6))
+# plt.plot(fpr_rf, tpr_rf, label=f'Random Forest (AUC={auc_rf:.3f})', lw=2)
+# plt.plot(fpr_xgb, tpr_xgb, label=f'XGBoost (AUC={auc_xgb:.3f})', lw=2)
+# plt.plot(fpr_lr, tpr_lr, label=f'Best PCA {best_pair} deg={best_deg} (AUC={auc_lr:.3f})', lw=2)
+# plt.plot([0,1],[0,1],'k--', lw=1)
+# plt.xlabel("False Positive Rate",fontsize=16)
+# plt.ylabel("True Positive Rate",fontsize=16)
+# plt.legend(fontsize=10,loc="lower right")
+# plt.grid(alpha=0.3)
+# plt.tight_layout()
+# plt.show(block=True) # 
+
+
+# models = {
+#     f"RF (Th={best_th_rf:.2f})": (y_test, y_pred_rf), 
+#     f"XGB (Th={best_th_xgb:.2f})": (y_test, y_pred_xgb), 
+#     f"PCA LR ({best_pair}, deg={best_deg}, Th={best_th_lr:.2f})": (y_test, y_pred_lr) 
+# }
+
+# fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+# for ax, (name, (yt, yp)) in zip(axes, models.items()):
+#     cm = confusion_matrix(yt, yp)
+#     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["Quiet", "Loud"])
+#     disp.plot(ax=ax, colorbar=False, cmap="Blues", values_format="d")
+#     ax.set_title(name, fontsize=12, fontweight='bold')
+#     ax.set_xlabel("Predicted Label", fontsize=10)
+#     ax.set_ylabel("True Label", fontsize=10)
+# plt.tight_layout()
+# plt.show(block=True) #
+
