@@ -553,7 +553,7 @@ summary_df = pd.DataFrame(results).join(span_df, on="PC Pair", how="left")
 
 summary_df["RLQ Separation Rating"] = summary_df["Base RLQ Separation"].fillna(0) + 0.0 * summary_df["Recall"] ## add recall weight here for model depenedent metric
 
-print("\n===== PCA GEOMETRIC SEPARATION & SPAN SUMMARY =====")
+print("\npca separation and span summary: a check")
 print(summary_df[["PC Pair", "Degree", "Recall", "Fisher Ratio", "Span Ratio", "RLQ Separation Rating"]]
       .round(4)
       .sort_values(by="RLQ Separation Rating", ascending=False)
@@ -562,7 +562,7 @@ print(summary_df[["PC Pair", "Degree", "Recall", "Fisher Ratio", "Span Ratio", "
 
 for deg in degrees:
     top = summary_df[summary_df["Degree"] == deg].sort_values(by="RLQ Separation Rating", ascending=False).head(5)
-    print(f"\n===== TOP 5 PCA PAIRS for Degree {deg} =====")
+    print(f"\ntop 5 pca pairs sorted by recall (this table also prints f1,auc, rlqsr and recall of course) {deg}")
     print(top[["PC Pair", "Recall", "F1", "AUC", "RLQ Separation Rating"]].round(4))
 
 
